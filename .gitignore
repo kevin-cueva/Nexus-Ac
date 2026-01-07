@@ -1,0 +1,62 @@
+# Visual Studio / .NET
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.sln.ide
+
+# Visual Studio Code
+.vscode/
+
+# Build outputs
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Publish output
+publish/
+*.Publish.xml
+
+# NuGet
+*.nupkg
+packages/
+
+# Rider/IDEA
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# Logs and telemetry
+*.log
+logs/
+
+# Test results / coverage
+TestResults/
+coverage/
+
+# Runtime files
+*.deps.json
+*.runtimeconfig.json
+
+# User secrets / local settings
+appsettings.Development.json
+secrets.json
+local.settings.json
+
+# Generated / intermediate files
+*.g.cs
+*.GeneratedMSBuildEditorConfig.editorconfig
+
+# ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# Misc
+Thumbs.db
+node_modules/
+*.db
+*.sqlite
