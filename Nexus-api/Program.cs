@@ -5,8 +5,8 @@ using ModelContextProtocol.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var apiKey = builder.Configuration["FabuRobotic:ApiKey"];
-var modelId = builder.Configuration["FabuRobotic:ModelId"];
+var apiKey = builder.Configuration["Nexus:ApiKey"];
+var modelId = builder.Configuration["Nexus:ModelId"];
 var rutaMcp = builder.Configuration["McpServer:RutaEjecucion"];
 
 await using McpClient mcpClient =
