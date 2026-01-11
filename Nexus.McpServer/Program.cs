@@ -4,10 +4,8 @@ using ModelContextProtocol.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 
-
-var builder = Host.CreateEmptyApplicationBuilder(null);
-
-//builder.Services.AddMemoryCache();
+//Generic Host completamente vacío
+var builder = Host.CreateEmptyApplicationBuilder(null); 
 
 builder.Services.AddLogging(loggin =>
 {
