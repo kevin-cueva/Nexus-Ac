@@ -1,4 +1,5 @@
 
+using System.Reflection;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
@@ -36,6 +37,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddKernel()
     .AddOpenAIChatCompletion(modelId!, apiKey!)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
+
+//Acceso a la memoria semántica
 builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 {
     // Configuración del modelo de Embeddings
@@ -90,4 +93,5 @@ if (bool.TryParse(Environment.GetEnvironmentVariable(
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+
 await app.RunAsync();
