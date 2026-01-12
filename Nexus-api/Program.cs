@@ -4,6 +4,7 @@ using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using Nexus_api.Services;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,9 +67,11 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 
 //Inyecciones
 builder.Services.AddScoped<AgentsServices>();
-builder.Services.AddMemoryCache();
+builder.Services.AddScoped<DataEmbeddingServices>();
+//builder.Services.AddMemoryCache();
 
 var app = builder.Build();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -94,6 +97,25 @@ if (bool.TryParse(Environment.GetEnvironmentVariable(
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
-app.MapControllers();
+try 
+{
+    app.MapControllers();
+    app.MapScalarApiReference();
+}
+catch (System.Reflection.ReflectionTypeLoadException ex)
+{
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.WriteLine("!!! ERROR DE CARGA DE TIPOS !!!");
+    foreach (var loaderEx in ex.LoaderExceptions)
+    {
+        if (loaderEx != null)
+        {
+            Console.WriteLine($"- {loaderEx.Message}");
+            Console.WriteLine($"  Tipo: {loaderEx.GetType().Name}");
+        }
+    }
+    Console.ResetColor();
+    throw; // Relanzar para detener la ejecución
+};
 
 await app.RunAsync();
