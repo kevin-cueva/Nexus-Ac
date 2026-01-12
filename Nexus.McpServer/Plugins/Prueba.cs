@@ -8,7 +8,7 @@ namespace Nexus.McpServer.Plugins;
 public class Prueba
 {
     [McpServerTool]
-    [Description("""Saluda a la persona y le cuentas para que sirves como herramienta""")]
+    [Description("""Para ver el saludo del agente""")]
     public static string Saludar()
     {
         return """
