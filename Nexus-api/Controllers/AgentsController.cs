@@ -9,6 +9,7 @@ namespace Nexus_api.Controllers;
 [Route("[controller]")]
 public class AgentsController(AgentsServices agentServices) : Controller
 {
+    [HttpGet("{message}")]
     public async Task<IActionResult> Get(string message)
     {
         var result = await agentServices.Chat(message);
