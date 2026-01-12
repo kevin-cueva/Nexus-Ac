@@ -4,22 +4,20 @@ using ModelContextProtocol.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 
-//Generic Host completamente vacío
-var builder = Host.CreateEmptyApplicationBuilder(null); 
+var builder = Host.CreateEmptyApplicationBuilder(null);
 
-builder.Services.AddLogging(loggin =>
+builder.Services.AddLogging(logging =>
 {
-    loggin.AddConsole();
+    logging.AddConsole();
 });
 
-//Errores los envie a standard error
 builder.Services.Configure<ConsoleLoggerOptions>(o =>
 {
     o.LogToStandardErrorThreshold = LogLevel.Trace;
 });
 
 builder.Services.AddMcpServer()
-.WithStdioServerTransport()
-.WithToolsFromAssembly();
+    .WithStdioServerTransport()
+    .WithToolsFromAssembly(typeof(Nexus.McpServer.Plugins.Prueba).Assembly);
 
 await builder.Build().RunAsync();
