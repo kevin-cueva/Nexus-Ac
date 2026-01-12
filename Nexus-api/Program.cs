@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
+using Nexus_api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +65,7 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 });
 
 //Inyecciones
+builder.Services.AddScoped<AgentsServices>();
 builder.Services.AddMemoryCache();
 
 var app = builder.Build();
