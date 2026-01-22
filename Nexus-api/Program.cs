@@ -1,7 +1,11 @@
 
+using System.Reflection;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
+using Nexus_api.Services;
+using Nexus_api.Services.Interface;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +40,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddKernel()
     .AddOpenAIChatCompletion(modelId!, apiKey!)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
+
+//Acceso a la memoria semántica
 builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 {
     // Configuración del modelo de Embeddings
@@ -61,9 +67,12 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 });
 
 //Inyecciones
-builder.Services.AddMemoryCache();
+builder.Services.AddScoped<AgentsServices>();
+builder.Services.AddScoped<IDataEmbeddingServices, DataEmbeddingServices>();
+//builder.Services.AddMemoryCache();
 
 var app = builder.Build();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -89,5 +98,25 @@ if (bool.TryParse(Environment.GetEnvironmentVariable(
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
-app.MapControllers();
+try 
+{
+    app.MapControllers();
+    app.MapScalarApiReference();
+}
+catch (System.Reflection.ReflectionTypeLoadException ex)
+{
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.WriteLine("!!! ERROR DE CARGA DE TIPOS !!!");
+    foreach (var loaderEx in ex.LoaderExceptions)
+    {
+        if (loaderEx != null)
+        {
+            Console.WriteLine($"- {loaderEx.Message}");
+            Console.WriteLine($"  Tipo: {loaderEx.GetType().Name}");
+        }
+    }
+    Console.ResetColor();
+    throw; // Relanzar para detener la ejecución
+};
+
 await app.RunAsync();
