@@ -4,6 +4,7 @@ using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using Nexus_api.Services;
+using Nexus_api.Services.Interface;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -67,7 +68,7 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 
 //Inyecciones
 builder.Services.AddScoped<AgentsServices>();
-builder.Services.AddScoped<DataEmbeddingServices>();
+builder.Services.AddScoped<IDataEmbeddingServices, DataEmbeddingServices>();
 //builder.Services.AddMemoryCache();
 
 var app = builder.Build();

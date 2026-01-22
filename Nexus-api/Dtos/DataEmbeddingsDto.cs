@@ -14,6 +14,7 @@ public class DataEmbeddingsDto
         /// El archivo PDF que se va a procesar.
         /// </summary>
         [Required] IFormFile File,
+        [Required] string DocumentId,
         Metadata Metadata
     );
     /// <summary>
