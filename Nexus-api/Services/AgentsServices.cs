@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Nexus_api.Services;
 
-public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory)
+public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory, IMemoryCache memoryCache)
 {
 
    /// <summary>
@@ -46,9 +47,57 @@ public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory)
         /// aplicará automáticamente la configuración OpenAIPromptExecutionSettings que definiste.
         /// </summary>
         private static readonly KernelArguments arguments = new (settings);
-        public async Task<string> Chat(string prompt)
+        
+        private const string HistoryCacheKeyPrefix = "conversation_history_";
+        private const int HistoryCacheDurationMinutes = 30;
+
+        /// <summary>
+        /// Obtiene el historial de conversación para un usuario específico
+        /// </summary>
+        private List<(string role, string message)> GetConversationHistory(string userId)
         {
-            
+            var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+            if (memoryCache.TryGetValue(cacheKey, out List<(string, string)>? history))
+            {
+                return history ?? [];
+            }
+            return [];
+        }
+
+        /// <summary>
+        /// Guarda el historial de conversación en caché
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="history"></param>
+        private void SaveConversationHistory(string userId, List<(string role, string message)> history)
+        {
+            var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(HistoryCacheDurationMinutes));
+            memoryCache.Set(cacheKey, history, cacheOptions);
+        }
+
+        /// <summary>
+        /// Formatea el historial de conversación como texto
+        /// </summary>
+        private static string FormatConversationHistory(List<(string role, string message)> history)
+        {
+            if (history.Count == 0)
+                return string.Empty;
+
+            var historyText = "Historial de conversación:\n";
+            foreach (var (role, message) in history.TakeLast(10)) // Últimos 10 mensajes
+            {
+                historyText += $"{role}: {message}\n";
+            }
+            return historyText;
+        }
+
+        public async Task<string> Chat(string prompt, string userId = "default")
+        {
+            // 📝 Obtener historial de conversación
+            var conversationHistory = GetConversationHistory(userId);
+
             // 🔍 1. Buscar en Kernel Memory (Qdrant)
             var searchResult = await kernelMemory.SearchAsync(
                 query: prompt,
@@ -58,8 +107,11 @@ public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory)
             string retrievedContent = string.Join("\n\n", 
                 searchResult.Results.Select(r => r.Partitions[0].Text));
             
-            // 🧠 2. Inyectar el contexto recuperado en el prompt
+            // 🧠 2. Inyectar el contexto recuperado + historial en el prompt
+            string historyContext = FormatConversationHistory(conversationHistory);
             string fullPrompt = $"""
+                {historyContext}
+                
                 Información de la base de conocimiento:
                 {(string.IsNullOrEmpty(retrievedContent) ? "No se encontró información relevante." : retrievedContent)}
 
@@ -67,7 +119,14 @@ public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory)
                 """;
 
             var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
-            return result.GetValue<string>() ?? string.Empty;
+            var responseText = result.GetValue<string>() ?? string.Empty;
+
+            // 💾 Guardar el intercambio en el historial
+            conversationHistory.Add(("usuario", prompt));
+            conversationHistory.Add(("asistente", responseText));
+            SaveConversationHistory(userId, conversationHistory);
+
+            return responseText;
         }
 }
 

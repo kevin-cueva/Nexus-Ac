@@ -69,7 +69,7 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
 //Inyecciones
 builder.Services.AddScoped<AgentsServices>();
 builder.Services.AddScoped<IDataEmbeddingServices, DataEmbeddingServices>();
-//builder.Services.AddMemoryCache();
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 

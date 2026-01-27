@@ -10,9 +10,9 @@ namespace Nexus_api.Controllers;
 public class AgentsController(AgentsServices agentServices) : Controller
 {
     [HttpGet("{message}")]
-    public async Task<IActionResult> Get(string message)
+    public async Task<IActionResult> Get(string message, [FromQuery] string userId = "default")
     {
-        var result = await agentServices.Chat(message);
+        var result = await agentServices.Chat(message, userId);
         return Ok(result);
     }
 }
