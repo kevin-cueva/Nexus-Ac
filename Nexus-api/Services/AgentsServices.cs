@@ -1,11 +1,12 @@
 using System;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 namespace Nexus_api.Services;
 
-public class AgentsServices(Kernel kernel)
+public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory)
 {
 
    /// <summary>
@@ -47,7 +48,25 @@ public class AgentsServices(Kernel kernel)
         private static readonly KernelArguments arguments = new (settings);
         public async Task<string> Chat(string prompt)
         {
-            var result = await kernel.InvokePromptAsync(prompt, arguments);
+            
+            // 🔍 1. Buscar en Kernel Memory (Qdrant)
+            var searchResult = await kernelMemory.SearchAsync(
+                query: prompt,
+                limit: 3,
+                minRelevance: 0.5f
+            );
+            string retrievedContent = string.Join("\n\n", 
+                searchResult.Results.Select(r => r.Partitions[0].Text));
+            
+            // 🧠 2. Inyectar el contexto recuperado en el prompt
+            string fullPrompt = $"""
+                Información de la base de conocimiento:
+                {(string.IsNullOrEmpty(retrievedContent) ? "No se encontró información relevante." : retrievedContent)}
+
+                Pregunta del usuario: {prompt}
+                """;
+
+            var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
             return result.GetValue<string>() ?? string.Empty;
         }
 }

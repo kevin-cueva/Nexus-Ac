@@ -9,14 +9,14 @@ namespace Nexus_api.Services;
 
 public class DataEmbeddingServices(IKernelMemory kernelMemory) : IDataEmbeddingServices
 {
-    private readonly IKernelMemory _kernelMemory = kernelMemory; 
+    private readonly IKernelMemory _kernelMemory = kernelMemory;
 
     /// <summary>
     /// Método para el embedding de PDF
     /// </summary>
     /// <param name="pdf"></param>
     /// <returns></returns>
-    public async Task<bool> PdfEmbeddings( DataEmbeddingsDto.Pdf pdf)
+    public async Task<bool> PdfEmbeddings(DataEmbeddingsDto.Pdf pdf)
     {
         var tags = new TagCollection
         {
@@ -35,9 +35,9 @@ public class DataEmbeddingServices(IKernelMemory kernelMemory) : IDataEmbeddingS
                 fileName: pdf.File.FileName,      // Nombre original del archivo
                 documentId: pdf.DocumentId,       // Ej: "fb-02"
                 tags: tags                       // Metadatos para el payload
-                
+
             );
 
-        return embeddingPdf is not null; 
+        return embeddingPdf is not null;
     }
 }
