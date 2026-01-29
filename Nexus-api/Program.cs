@@ -66,6 +66,17 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
     AllowMixingVolatileAndPersistentData = true
 });
 
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173") // El puerto de tu frontend
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
 //Inyecciones
 builder.Services.AddScoped<AgentsServices>();
 builder.Services.AddScoped<IDataEmbeddingServices, DataEmbeddingServices>();
@@ -118,5 +129,5 @@ catch (System.Reflection.ReflectionTypeLoadException ex)
     Console.ResetColor();
     throw; // Relanzar para detener la ejecución
 };
-
+app.UseCors("AllowFrontend");
 await app.RunAsync();
