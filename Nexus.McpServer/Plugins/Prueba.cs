@@ -19,4 +19,15 @@ public class Prueba
         realizados
         """;
     }
+    [McpServerTool]
+    [Description("""Para ver los Proyectos, casos de uso o repositorios echos""")]
+    public static string ConsultarProyectosCasosDeUsoRepositorios()
+    {
+        return """
+        Los proyectos son:
+        EcoTrack Analytics: Platform:es una plataforma web integral diseñada para ayudar 
+        a empresas medianas y grandes a monitorear, analizar y reportar sus métricas de 
+        sostenibilidad ambiental
+        """;
+    }
 }
