@@ -24,8 +24,17 @@ public class DataEmbeddingControllers(IDataEmbeddingServices dataEmbeddingServic
     [ProducesResponseType(typeof(string), 200)]
     public async Task<IActionResult> PostPdf([FromForm] DataEmbeddingsDto.Pdf pdf)
     {
-        var result = await _dataEmbeddingServices.PdfEmbeddings(pdf);
+        var result = await _dataEmbeddingServices.PdfEmbeddingsQdrant(pdf);
         if (!result) return BadRequest();
-        return Ok("PDF Embedding realizado con exito");
+        return Ok("PDF Embedding realizado con exito (Qdrant)");
+    }
+
+    [HttpPost("pdf/pinecone")]
+    [ProducesResponseType(typeof(string), 200)]
+    public async Task<IActionResult> PostPdfPinecone([FromForm] DataEmbeddingsDto.Pdf pdf)
+    {
+        var result = await _dataEmbeddingServices.TextEmbeddingsPinecone(pdf);
+        if (!result) return BadRequest();
+        return Ok("PDF Embedding realizado con exito (Pinecone)");
     }
 }

@@ -10,6 +10,12 @@ public interface IDataEmbeddingServices
     /// </summary>
     /// <param name="pdf"></param>
     /// <returns></returns>
-    Task<bool> PdfEmbeddings( DataEmbeddingsDto.Pdf pdf);
+    Task<bool> PdfEmbeddingsQdrant( DataEmbeddingsDto.Pdf pdf);
+    /// <summary>
+    /// Método para vectorizar PDF en Pinecone
+    /// </summary>
+    /// <param name="text"></param>
+    /// <returns></returns>
+    Task<bool> TextEmbeddingsPinecone(DataEmbeddingsDto.Pdf text);
 
 }

@@ -1,31 +1,35 @@
 
 using System.Reflection;
+using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
+using Nexus_api.Configuration;
 using Nexus_api.Services;
 using Nexus_api.Services.Interface;
+using Nexus_api.Infrastructure.Pinecone;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var apiKey = builder.Configuration["Nexus:ApiKey"];
-var modelId = builder.Configuration["Nexus:ModelId"];
-var rutaMcp = builder.Configuration["McpServer:RutaEjecucion"];
+builder.Services.Configure<AppSettings>(builder.Configuration);
+builder.Services.Configure<PineconeSettings>(builder.Configuration.GetSection("Pinecone"));
 
-await using McpClient mcpClient =
-    await McpClient.CreateAsync(
+var appSettings = builder.Configuration.Get<AppSettings>() ?? throw new InvalidOperationException("Failed to bind AppSettings from configuration.");
+
+ 
+    await using var tempMcpClient = await McpClient.CreateAsync(
         new StdioClientTransport(
             new StdioClientTransportOptions
-{
-    Name = "nexus",
-    Command = "/bin/bash",
-    Arguments =
-    [
-        "-c",
-        $"dotnet {rutaMcp} 2> stderr.log"
-    ]
-}
+            {
+                Name = "nexus",
+                Command = "/bin/bash",
+                Arguments =
+                [
+                    "-c",
+                    $"dotnet {appSettings.McpServer.RutaEjecucion} 2> stderr.log"
+                ]
+            }
         ),
         loggerFactory: LoggerFactory.Create(logging =>
         {
@@ -34,11 +38,27 @@ await using McpClient mcpClient =
         })
     );
 
-var tools = mcpClient.ListToolsAsync(); 
+builder.Services.AddSingleton(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<PineconeSettings>>().Value;
+    return PineconeClientFactory.Create(settings);
+});
+
+builder.Services.AddScoped<PineconeVectorDbRepository>();
+
+var tools = tempMcpClient.ListToolsAsync(); 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+var apiKey = appSettings?.Nexus?.ApiKey;
+var modelId = appSettings?.Nexus?.ModelId;
+
+if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(modelId))
+{
+    throw new InvalidOperationException("Nexus API key and model ID must be configured in appsettings.");
+}
+
 builder.Services.AddKernel()
-    .AddOpenAIChatCompletion(modelId!, apiKey!)
+    .AddOpenAIChatCompletion(modelId, apiKey)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
 
 //Acceso a la memoria semántica
@@ -47,14 +67,14 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
     // Configuración del modelo de Embeddings
     var embeddingConfig = new OpenAIConfig
     {
-        APIKey = apiKey!,
+        APIKey = apiKey,
         EmbeddingModel = "text-embedding-3-small",   //MODELO DE EMBEDDING
     };
     // Configuración del modelo de Chat
     var chatConfig = new OpenAIConfig
     {
-        APIKey = apiKey!,
-        TextModel = modelId!,   // tu modelo "gpt-5-nano" 
+        APIKey = apiKey,
+        TextModel = modelId,   // tu modelo "gpt-5-nano" 
     };
     kernelBuilder
         .WithOpenAITextGeneration(chatConfig)

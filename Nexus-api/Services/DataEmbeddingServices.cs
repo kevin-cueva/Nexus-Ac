@@ -1,22 +1,32 @@
 using System;
-using Elastic.Clients.Elasticsearch;
-using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.KernelMemory;
+using Microsoft.Extensions.Options;
+using Nexus_api.Configuration;
 using Nexus_api.Dtos;
+using Nexus_api.Infrastructure;
+using Nexus_api.Infrastructure.Pinecone;
 using Nexus_api.Services.Interface;
 
 namespace Nexus_api.Services;
 
-public class DataEmbeddingServices(IKernelMemory kernelMemory) : IDataEmbeddingServices
+public class DataEmbeddingServices(
+    IKernelMemory kernelMemory,
+    PineconeVectorDbRepository pineconeRepository,
+    IOptions<AppSettings> options)
+    : IDataEmbeddingServices
 {
     private readonly IKernelMemory _kernelMemory = kernelMemory;
+    private readonly PineconeVectorDbRepository _pineconeRepository = pineconeRepository;
+    private readonly AppSettings _appSettings = options.Value;
+
+    private const string EmbeddingModel = "text-embedding-3-small";
 
     /// <summary>
-    /// Método para el embedding de PDF
+    /// Método para el embedding de PDF en Qdrant (ya existente)
     /// </summary>
-    /// <param name="pdf"></param>
-    /// <returns></returns>
-    public async Task<bool> PdfEmbeddings(DataEmbeddingsDto.Pdf pdf)
+    public async Task<bool> PdfEmbeddingsQdrant(DataEmbeddingsDto.Pdf pdf)
     {
         var tags = new TagCollection
         {
@@ -26,18 +36,50 @@ public class DataEmbeddingServices(IKernelMemory kernelMemory) : IDataEmbeddingS
             { nameof(DataEmbeddingsDto.Metadata.Classification), pdf.Metadata.Classification }
         };
 
-        // ✅ Abrir el stream del archivo subido
         await using Stream stream = pdf.File.OpenReadStream();
 
-        // ✅ ¡IMPORTANTE! Usar la sobrecarga que acepta STREAM
         var embeddingPdf = await _kernelMemory.ImportDocumentAsync(
-                content: stream,                   // Stream del PDF subido
-                fileName: pdf.File.FileName,      // Nombre original del archivo
-                documentId: pdf.DocumentId,       // Ej: "fb-02"
-                tags: tags                       // Metadatos para el payload
-
-            );
+            content: stream,
+            fileName: pdf.File.FileName,
+            documentId: pdf.DocumentId,
+            tags: tags);
 
         return embeddingPdf is not null;
+    }
+
+    /// <summary>
+    /// Genera embeddings usando OpenAI y los guarda en Pinecone.
+    /// </summary>
+    public async Task<bool> TextEmbeddingsPinecone(DataEmbeddingsDto.Pdf pdf)
+    {
+        await using var stream = pdf.File.OpenReadStream();
+        var text = Nexus_api.Infrastructure.Utils.ExtractTextFromPdf(stream);
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var chunks = Nexus_api.Infrastructure.Utils.SplitIntoChunks(text, 4);
+        var apiKey = _appSettings.Nexus.ApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("Nexus API key is required to generate embeddings.");
+
+        var metadata = new Dictionary<string, object>
+        {
+            ["DocumentId"] = pdf.DocumentId,
+            ["FileName"] = pdf.File.FileName,
+            ["UseCaseId"] = pdf.Metadata.UseCaseId,
+            ["Departament"] = pdf.Metadata.Departament,
+            ["Owner"] = pdf.Metadata.Owner,
+            ["Classification"] = pdf.Metadata.Classification
+        };
+
+        var index = 0;
+        foreach (var chunk in chunks)
+        {
+            var embedding = await Nexus_api.Infrastructure.Utils.CreateOpenAiEmbeddingAsync(apiKey, EmbeddingModel, chunk);
+            var vectorId = $"{pdf.DocumentId}_{index++}";
+            await _pineconeRepository.UpsertAsync(vectorId, embedding, metadata);
+        }
+
+        return true;
     }
 }
