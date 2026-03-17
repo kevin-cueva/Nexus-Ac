@@ -144,7 +144,7 @@ public class AgentsServices
             // Si hay contenido relevante, agregarlo como mensaje de sistema
             if (!string.IsNullOrEmpty(retrievedContent))
             {
-                //chatHistory.AddSystemMessage($"Información de la base de conocimiento:\n{retrievedContent}");
+                chatHistory.AddSystemMessage($"Información de la base de conocimiento:\n{retrievedContent}");
             }
             // Si no hay contenido, dejar que la IA decida invocar herramientas
             
