@@ -8,6 +8,7 @@ using Nexus_api.Dtos;
 using Nexus_api.Infrastructure;
 using Nexus_api.Infrastructure.Pinecone;
 using Nexus_api.Services.Interface;
+using Pinecone;
 
 namespace Nexus_api.Services;
 
@@ -62,7 +63,7 @@ public class DataEmbeddingServices(
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new InvalidOperationException("Nexus API key is required to generate embeddings.");
 
-        var metadata = new Dictionary<string, object>
+        Metadata metadata = new()
         {
             ["DocumentId"] = pdf.DocumentId,
             ["FileName"] = pdf.File.FileName,
@@ -75,8 +76,9 @@ public class DataEmbeddingServices(
         var index = 0;
         foreach (var chunk in chunks)
         {
-            var embedding = await Nexus_api.Infrastructure.Utils.CreateOpenAiEmbeddingAsync(apiKey, EmbeddingModel, chunk);
+            var embedding = await Utils.CreateOpenAiEmbeddingAsync(apiKey, EmbeddingModel, chunk);
             var vectorId = $"{pdf.DocumentId}_{index++}";
+            metadata["ChunkText"] = chunk;
             await _pineconeRepository.UpsertAsync(vectorId, embedding, metadata);
         }
 
