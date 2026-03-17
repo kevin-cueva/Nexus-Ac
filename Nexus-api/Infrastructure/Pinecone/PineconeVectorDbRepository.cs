@@ -17,29 +17,29 @@ public class PineconeVectorDbRepository(
     /// <summary>
     /// Upsert de un vector en el índice configurado en PineconeSettings.Environment.
     /// </summary>
-   public async Task UpsertAsync(string id, float[] values, Metadata metadata)
-{
-    var indexName = _config.Environment;
-
-    if (string.IsNullOrWhiteSpace(indexName))
-        throw new InvalidOperationException("Pinecone index name must be configured in PineconeSettings.Environment.");
-
-    var index = _client.Index(indexName);
-    Vector vector = new()
+    public async Task UpsertAsync(string id, float[] values, Metadata metadata)
     {
-        Id = id,
-        Values = values,
-        Metadata = metadata
-    };
-    UpsertRequest upsertRequest = new()
-    {   
-        Namespace = "default",
-        Vectors = [vector]
-    };
-    await index.UpsertAsync(
-        upsertRequest
-    );
-}
+        var indexName = _config.Environment;
+
+        if (string.IsNullOrWhiteSpace(indexName))
+            throw new InvalidOperationException("Pinecone index name must be configured in PineconeSettings.Environment.");
+
+        var index = _client.Index(indexName);
+        Vector vector = new()
+        {
+            Id = id,
+            Values = values,
+            Metadata = metadata
+        };
+        UpsertRequest upsertRequest = new()
+        {
+            Namespace = "default",
+            Vectors = [vector]
+        };
+        await index.UpsertAsync(
+            upsertRequest
+        );
+    }
 
     /// <summary>
     /// 
@@ -50,21 +50,21 @@ public class PineconeVectorDbRepository(
     /// <exception cref="InvalidOperationException"></exception>
     public async Task<QueryResponse> QueryAsync(float[] vector, int topK)
     {
-    
+
         var indexName = _config.Environment;
         if (string.IsNullOrWhiteSpace(indexName))
             throw new InvalidOperationException("Pinecone index name must be configured in PineconeSettings.Environment.");
 
-        var index = _client.Index(host: indexName);
-         QueryResponse queryResponse = await index.QueryAsync(new QueryRequest {
+        var index = _client.Index(indexName);
+        QueryResponse queryResponse = await index.QueryAsync(new QueryRequest
+        {
             Vector = vector,
             TopK = 2,
             IncludeMetadata = true,
         });
-        if(queryResponse == null || queryResponse.Matches == null)
+        if (queryResponse == null || queryResponse.Matches == null)
             return new QueryResponse();
 
         return queryResponse;
-
     }
 }
