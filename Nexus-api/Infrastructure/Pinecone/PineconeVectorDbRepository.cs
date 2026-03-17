@@ -60,7 +60,7 @@ public class PineconeVectorDbRepository(
         {
             Vector = vector,
             TopK = 2,
-            IncludeMetadata = false,
+            IncludeMetadata = true,
             Namespace = "default"
         });
         if (queryResponse == null || queryResponse.Matches == null)

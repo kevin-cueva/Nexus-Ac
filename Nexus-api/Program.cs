@@ -78,8 +78,8 @@ builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
     };
     kernelBuilder
         .WithOpenAITextGeneration(chatConfig)
-        .WithOpenAITextEmbeddingGeneration(embeddingConfig)
-        .WithQdrantMemoryDb("http://localhost:6333");
+        .WithOpenAITextEmbeddingGeneration(embeddingConfig);
+        //.WithQdrantMemoryDb("http://localhost:6333");
 
 }, new KernelMemoryBuilderBuildOptions
 {
