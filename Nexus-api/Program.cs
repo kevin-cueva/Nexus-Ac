@@ -1,17 +1,22 @@
 
 using System.Reflection;
-using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Embeddings;
 using ModelContextProtocol.Client;
 using Nexus_api.Services;
 using Nexus_api.Services.Interface;
+using Qdrant.Client;
 using Scalar.AspNetCore;
+using Microsoft.Extensions.DependencyInjection;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
 var apiKey = builder.Configuration["Nexus:ApiKey"];
 var modelId = builder.Configuration["Nexus:ModelId"];
 var rutaMcp = builder.Configuration["McpServer:RutaEjecucion"];
+var qdrantEndpoint = builder.Configuration["Qdrant:Endpoint"];
+var qdrantApiKey = builder.Configuration["Qdrant:ApiKey"];
 
 await using McpClient mcpClient =
     await McpClient.CreateAsync(
@@ -39,33 +44,11 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddKernel()
     .AddOpenAIChatCompletion(modelId!, apiKey!)
+    .AddOpenAITextEmbeddingGeneration("text-embedding-3-small", apiKey!)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
+builder.Services.AddSingleton(sp => new QdrantClient(qdrantEndpoint!, 6334!, true, qdrantApiKey!));
 
 //Acceso a la memoria semántica
-builder.Services.AddKernelMemory<MemoryServerless>(kernelBuilder =>
-{
-    // Configuración del modelo de Embeddings
-    var embeddingConfig = new OpenAIConfig
-    {
-        APIKey = apiKey!,
-        EmbeddingModel = "text-embedding-3-small",   //MODELO DE EMBEDDING
-    };
-    // Configuración del modelo de Chat
-    var chatConfig = new OpenAIConfig
-    {
-        APIKey = apiKey!,
-        TextModel = modelId!,   // tu modelo "gpt-5-nano" 
-    };
-    kernelBuilder
-        .WithOpenAITextGeneration(chatConfig)
-        .WithOpenAITextEmbeddingGeneration(embeddingConfig)
-        .WithQdrantMemoryDb("http://localhost:6333");
-
-}, new KernelMemoryBuilderBuildOptions
-{
-    AllowMixingVolatileAndPersistentData = true
-});
-
 
 builder.Services.AddCors(options =>
 {
@@ -90,22 +73,7 @@ if (app.Environment.IsDevelopment())
 }
 //Importa automáticamente una página web a la memoria semántica (Kernel Memory)
 // al iniciar la aplicación
-if (bool.TryParse(Environment.GetEnvironmentVariable(
-    "VectorizeAtStartup"), out bool vectorizeAtStartup) && vectorizeAtStartup)
-{
-    using var scope = app.Services.CreateScope();
-    try
-    {
-        //Accedo a los metodos de kernel memory
-        var kernelMemory = scope.ServiceProvider.GetRequiredService<IKernelMemory>();
-        //await kernelMemory.ImportWebPageAsync("https://faburobotics.com/");
-        //await kernelMemory.ImportDocumentAsync("FB-02_Fact_Sheet_Spanish.pdf", "fb-02"); 
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error al importar la web: {ex.Message}");
-    }
-}
+
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
