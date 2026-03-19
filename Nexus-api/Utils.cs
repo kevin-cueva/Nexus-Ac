@@ -13,8 +13,6 @@ namespace Nexus_api.Utils;
 
 public static class Utils
 {
-    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
-
     /// <summary>
     /// Extrae texto de un PDF usando PdfPig.
     /// </summary>
@@ -53,45 +51,5 @@ public static class Utils
 
             yield return string.Join(' ', chunk);
         }
-    }
-
-    /// <summary>
-    /// Llama a la API de OpenAI embeddings y devuelve el vector.
-    /// </summary>
-    public static async Task<float[]> CreateOpenAiEmbeddingAsync(string apiKey, string model, string input)
-    {
-        if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentNullException(nameof(apiKey));
-        if (string.IsNullOrWhiteSpace(model)) throw new ArgumentNullException(nameof(model));
-        if (input == null) throw new ArgumentNullException(nameof(input));
-
-        var request = new
-        {
-            model,
-            input
-        };
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/embeddings")
-        {
-            Content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json")
-        };
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-        using var response = await HttpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        using Stream stream = await response.Content.ReadAsStreamAsync() ?? throw new InvalidOperationException("OpenAI response did not contain a response stream.");
-
-        using var doc = await JsonDocument.ParseAsync(stream) ?? throw new InvalidOperationException("OpenAI response parsing failed.");
-        var embeddingJson = doc.RootElement
-            .GetProperty("data")[0]
-            .GetProperty("embedding");
-
-        var values = new float[embeddingJson.GetArrayLength()];
-        for (var i = 0; i < values.Length; i++)
-        {
-            values[i] = embeddingJson[i].GetSingle();
-        }
-
-        return values;
     }
 }
