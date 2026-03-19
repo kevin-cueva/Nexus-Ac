@@ -3,10 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.Extensions.Caching.Memory;
+using Qdrant.Client;
+using Microsoft.SemanticKernel.Embeddings;
+using System.Text.Json.Serialization.Metadata;
+using System.Text.Json;
+using Nexus_api.Dtos;
 
 namespace Nexus_api.Services;
 
-public class AgentsServices(Kernel kernel, IMemoryCache memoryCache)
+public class AgentsServices(
+    Kernel kernel, 
+    IMemoryCache memoryCache,
+    QdrantClient qdrantClient,
+    ITextEmbeddingGenerationService embeddingService)
 {
 
    /// <summary>
@@ -102,31 +111,48 @@ public class AgentsServices(Kernel kernel, IMemoryCache memoryCache)
                 $"""
                 Busca en tu memoria semántica información relevante para responder a la siguiente pregunta del usuario: {prompt}
                 Devuelve solo el texto encontrado sin agregar nada más.
+                Regresa en estructura JSON: FoundInSemanticMemory (booleano) y ResponseContent (string con el texto encontrado o vacío si no se encontró nada).
                 """, 
                 arguments);
-                string retrievedContent = string.Join("\n\n", 
-                searchResult.RenderedPrompt?.Split(["\n\n"], StringSplitOptions.RemoveEmptyEntries) ?? []);
-            
-            // 🧠 2. Inyectar el contexto recuperado + historial en el prompt
-            // string historyContext = FormatConversationHistory(conversationHistory);
-            // string fullPrompt = $"""
-            //     {historyContext}
-                
-            //     Información de la base de conocimiento:
-            //     {(string.IsNullOrEmpty(searchResult.GetValue<string>() ?? string.Empty) ? "No se encontró información relevante." : retrievedContent)}
+            string jsonString = searchResult.GetValue<string>() ?? string.Empty;
+            var dto = JsonSerializer.Deserialize<ChatResponseDto>(jsonString);
+          
+            if (dto!.FoundInSemanticMemory)
+            {
+                // 💾 Guardar el intercambio en el historial
+                conversationHistory.Add(("usuario", prompt));
+                conversationHistory.Add(("asistente", dto.ResponseContent));
+                SaveConversationHistory(userId, conversationHistory);
+                return dto.ResponseContent;
+            }
+            var vector = await embeddingService.GenerateEmbeddingsAsync([prompt], null, CancellationToken.None);
+            IReadOnlyList<Qdrant.Client.Grpc.ScoredPoint>? buscaquedaQdrant = await qdrantClient.SearchAsync(
+                collectionName: "pdfs",
+                vector: vector[0].ToArray(),
+                limit: 1
+            );
+            string historyContext = FormatConversationHistory(conversationHistory);
+            string fullPrompt = $"""
+                Hitorial de la conversación:
+                {historyContext}
 
-            //     Pregunta del usuario: {prompt}
-            //     """;
+                Información de la base de conocimiento:
+                {buscaquedaQdrant[0].Payload["text"]}
 
-            // var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
-            // var responseText = result.GetValue<string>() ?? string.Empty;
+                Pregunta del usuario: {prompt}
+                """;
+
+            var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
+            var responseText = result.GetValue<string>() ?? string.Empty;
 
             // 💾 Guardar el intercambio en el historial
             conversationHistory.Add(("usuario", prompt));
-            conversationHistory.Add(("asistente", searchResult.GetValue<string>() ?? string.Empty));
+            conversationHistory.Add(("asistente", responseText));
             SaveConversationHistory(userId, conversationHistory);
 
-            return searchResult.GetValue<string>() ?? string.Empty;
+            return responseText;
         }
+
+        
 }
 
