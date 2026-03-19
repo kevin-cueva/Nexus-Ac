@@ -1,13 +1,12 @@
 using System;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Nexus_api.Services;
 
-public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory, IMemoryCache memoryCache)
+public class AgentsServices(Kernel kernel, IMemoryCache memoryCache)
 {
 
    /// <summary>
@@ -97,36 +96,37 @@ public class AgentsServices(Kernel kernel, IKernelMemory kernelMemory, IMemoryCa
         {
             // 📝 Obtener historial de conversación
             var conversationHistory = GetConversationHistory(userId);
-
             // 🔍 1. Buscar en Kernel Memory (Qdrant)
-            var searchResult = await kernelMemory.SearchAsync(
-                query: prompt,
-                limit: 3,
-                minRelevance: 0.5f
-            );
-            string retrievedContent = string.Join("\n\n", 
-                searchResult.Results.Select(r => r.Partitions[0].Text));
+        
+            var searchResult = await kernel.InvokePromptAsync(
+                $"""
+                Busca en tu memoria semántica información relevante para responder a la siguiente pregunta del usuario: {prompt}
+                Devuelve solo el texto encontrado sin agregar nada más.
+                """, 
+                arguments);
+                string retrievedContent = string.Join("\n\n", 
+                searchResult.RenderedPrompt?.Split(["\n\n"], StringSplitOptions.RemoveEmptyEntries) ?? []);
             
             // 🧠 2. Inyectar el contexto recuperado + historial en el prompt
-            string historyContext = FormatConversationHistory(conversationHistory);
-            string fullPrompt = $"""
-                {historyContext}
+            // string historyContext = FormatConversationHistory(conversationHistory);
+            // string fullPrompt = $"""
+            //     {historyContext}
                 
-                Información de la base de conocimiento:
-                {(string.IsNullOrEmpty(retrievedContent) ? "No se encontró información relevante." : retrievedContent)}
+            //     Información de la base de conocimiento:
+            //     {(string.IsNullOrEmpty(searchResult.GetValue<string>() ?? string.Empty) ? "No se encontró información relevante." : retrievedContent)}
 
-                Pregunta del usuario: {prompt}
-                """;
+            //     Pregunta del usuario: {prompt}
+            //     """;
 
-            var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
-            var responseText = result.GetValue<string>() ?? string.Empty;
+            // var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
+            // var responseText = result.GetValue<string>() ?? string.Empty;
 
             // 💾 Guardar el intercambio en el historial
             conversationHistory.Add(("usuario", prompt));
-            conversationHistory.Add(("asistente", responseText));
+            conversationHistory.Add(("asistente", searchResult.GetValue<string>() ?? string.Empty));
             SaveConversationHistory(userId, conversationHistory);
 
-            return responseText;
+            return searchResult.GetValue<string>() ?? string.Empty;
         }
 }
 
