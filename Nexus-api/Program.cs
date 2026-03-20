@@ -8,6 +8,7 @@ using Nexus_api.Services.Interface;
 using Qdrant.Client;
 using Scalar.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,15 @@ var modelId = builder.Configuration["Nexus:ModelId"];
 var rutaMcp = builder.Configuration["McpServer:RutaEjecucion"];
 var qdrantEndpoint = builder.Configuration["Qdrant:Endpoint"];
 var qdrantApiKey = builder.Configuration["Qdrant:ApiKey"];
+
+// IMPORTANTE: Deshabilitar el proxy del sistema para las conexiones gRPC a Qdrant
+// Los proxies HTTP corporativos no son compatibles con gRPC/HTTP2
+// Esta configuración debe ejecutarse ANTES de crear cualquier cliente HTTP/gRPC
+AppContext.SetSwitch("System.Net.Http.UseSocketsHttpHandler", true);
+HttpClient.DefaultProxy = new WebProxy()
+{
+    BypassList = [qdrantEndpoint ?? "*"]
+};
 
 await using McpClient mcpClient =
     await McpClient.CreateAsync(

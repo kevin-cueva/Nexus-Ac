@@ -13,11 +13,15 @@ public class Prueba
     /// </summary>
     /// <returns></returns>
     [McpServerTool]
-    [Description("""Primer saludo del agente, ademas de una breve descripción de lo que hace, de lo que te puede ayudar y como lo hace""")]
-    public static string Saludar()
+    [Description(
+    """
+    Primer saludo del agente, ademas de una breve 
+    descripción de lo que hace, de lo que te puede ayudar y como lo hace
+    """)]
+    public static string RespondeSaludoHola([Description("Nombre del usuario, si es que lo proporciona")] string? nombreUsuario)
     {
-        return """
-        Hola, soy Nexus un agente que te ayudarte a
+        return $"""
+        Hola, {nombreUsuario}! Soy Nexus, un agente que te ayudará a
         encontrar los casos de uso que se hayan 
         realizado en Song, con el fin de encontrar procesos similares,
         particioantes, tecnologias uy detalles de los anteriores proyectos

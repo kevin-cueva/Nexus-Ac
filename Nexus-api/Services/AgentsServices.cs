@@ -70,6 +70,12 @@ public class AgentsServices(
                 """,
             arguments);
         string jsonString = searchResult.GetValue<string>() ?? string.Empty;
+        var jsonStart = jsonString.IndexOf("{");
+        var jsonEnd = jsonString.LastIndexOf("}");
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
+        {
+            jsonString = jsonString.Substring(jsonStart, jsonEnd - jsonStart + 1);
+        }
         var dto = JsonSerializer.Deserialize<ChatResponseDto>(jsonString);
 
         if (dto!.FoundInSemanticMemory)
