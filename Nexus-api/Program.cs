@@ -5,6 +5,7 @@ using Microsoft.SemanticKernel.Embeddings;
 using ModelContextProtocol.Client;
 using Nexus_api.Services;
 using Nexus_api.Services.Interface;
+using Nexus_api.Infrastructure.DependencyInjection;
 using Qdrant.Client;
 using Scalar.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,9 @@ builder.Services.AddKernel()
     .AddOpenAITextEmbeddingGeneration("text-embedding-3-small", apiKey!)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
 builder.Services.AddSingleton(sp => new QdrantClient(qdrantEndpoint!, 6334!, true, qdrantApiKey!));
+
+var connectionString = builder.Configuration["ConnectionString:DbNexus"]!;
+builder.Services.AddSqlServerInfrastructure(connectionString);
 
 //Acceso a la memoria semántica
 
