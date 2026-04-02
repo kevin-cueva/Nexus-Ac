@@ -17,7 +17,7 @@ public class ClienServices(
     /// descripción, fecha de creación, nombre del cliente y sector asociado.
     /// </summary>
     /// <returns></returns>
-    public async Task<List<CasesDto>> AllCase()
+    public async Task<List<CasesDto>> AllCases()
     {
         var cases = await _caseRepository.Consultar()
             .Include(c => c.Sector)

@@ -8,6 +8,7 @@ using Microsoft.SemanticKernel.Embeddings;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Json;
 using Nexus_api.Dtos;
+using Nexus_api.Services.Interface;
 
 namespace Nexus_api.Services;
 
@@ -15,9 +16,11 @@ public class AgentsServices(
     Kernel kernel,
     IMemoryCache memoryCache,
     QdrantClient qdrantClient,
+    IClienServices clienServices,
     ITextEmbeddingGenerationService embeddingService)
 {
 
+    private bool _isInitialized = false;   
     /// <summary>
     /// En Semantic Kernel (SK), ese código configura cómo el kernel debe decidir 
     /// automáticamente si ejecuta o no una Function (Skill) de tu aplicación cuando 
@@ -62,6 +65,15 @@ public class AgentsServices(
     public async Task<string> Chat(string prompt, string userId = "default")
     {
         var conversationHistory = GetConversationHistory(userId);
+        if (!_isInitialized)
+        {
+           var allcases = await clienServices.AllCases();
+           var jsonCases = JsonSerializer.Serialize(allcases);
+           conversationHistory.Add(("sistema", $"Información de casos: {jsonCases}"));
+           _isInitialized = true;
+           
+        }
+
         var searchResult = await kernel.InvokePromptAsync(
             $"""
                 Busca en tu memoria semántica información relevante para responder a la siguiente pregunta del usuario: {prompt}

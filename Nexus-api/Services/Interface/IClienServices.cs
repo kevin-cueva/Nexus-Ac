@@ -13,6 +13,6 @@ public interface IClienServices
    /// El resultado se devuelve como una tarea asincrónica que contiene la lista de casos.
    /// </summary>
    /// <returns></returns>
-   public Task<List<CasesDto>> AllCase();
+   public Task<List<CasesDto>> AllCases();
 
 }
