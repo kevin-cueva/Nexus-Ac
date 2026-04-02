@@ -5,10 +5,14 @@ using Microsoft.SemanticKernel.Embeddings;
 using ModelContextProtocol.Client;
 using Nexus_api.Services;
 using Nexus_api.Services.Interface;
+using Nexus_api.Infrastructure.Data;
 using Qdrant.Client;
 using Scalar.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
+using Nexus_api.Infrastructure.Repository;
+using Nexus_api.Infrastructure.Data;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +62,10 @@ builder.Services.AddKernel()
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
 builder.Services.AddSingleton(sp => new QdrantClient(qdrantEndpoint!, 6334!, true, qdrantApiKey!));
 
+var connectionString = builder.Configuration["ConnectionString:DbNexus"]!;
+builder.Services.AddDbContext<NexusDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
 //Acceso a la memoria semántica
 
 builder.Services.AddCors(options =>
@@ -71,6 +79,8 @@ builder.Services.AddCors(options =>
         });
 });
 //Inyecciones
+builder.Services.AddTransient(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IClienServices, ClienServices>();
 builder.Services.AddScoped<AgentsServices>();
 builder.Services.AddScoped<IDataEmbeddingServices, DataEmbeddingServices>();
 builder.Services.AddMemoryCache();
