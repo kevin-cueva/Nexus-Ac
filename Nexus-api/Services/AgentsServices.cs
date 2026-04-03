@@ -65,11 +65,11 @@ public class AgentsServices(
     public async Task<string> Chat(string prompt, string userId = "default")
     {
         var conversationHistory = GetConversationHistory(userId);
-        if (!_isInitialized)
+        if (!_isInitialized && conversationHistory.Count == 0)
         {
-           var allcases = await clienServices.AllCases();
+           var allcases = await clienServices.SizeCasesBySector();
            var jsonCases = JsonSerializer.Serialize(allcases);
-           conversationHistory.Add(("sistema", $"Información de casos: {jsonCases}"));
+           conversationHistory.Add(("sistema", $"Información de cantidad de casos por sector: {jsonCases}"));
            _isInitialized = true;
            
         }
