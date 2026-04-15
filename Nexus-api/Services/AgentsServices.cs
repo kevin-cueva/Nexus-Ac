@@ -1,14 +1,12 @@
-using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.Extensions.Caching.Memory;
 using Qdrant.Client;
 using Microsoft.SemanticKernel.Embeddings;
-using System.Text.Json.Serialization.Metadata;
 using System.Text.Json;
 using Nexus_api.Dtos;
 using Nexus_api.Services.Interface;
+using Nexus_api.Infrastructure.Utils;
 
 namespace Nexus_api.Services;
 
@@ -19,102 +17,41 @@ public class AgentsServices(
     IClienServices clienServices,
     ITextEmbeddingGenerationService embeddingService)
 {
-
-    private bool _isInitialized = false;   
-    /// <summary>
-    /// En Semantic Kernel (SK), ese código configura cómo el kernel debe decidir 
-    /// automáticamente si ejecuta o no una Function (Skill) de tu aplicación cuando 
-    /// el modelo de IA lo considere necesario.
-    /// </summary>
-    /// <returns></returns>
-    private static readonly OpenAIPromptExecutionSettings settings = new()
-    {
-        FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-        ChatSystemPrompt = """
-             Instrucciones obligatorias: responde siempre en español; 
-             si el usuario saluda, comienza con un saludo cordial; 
-             busca primero en tu memoria o base de conocimiento y, 
-             si hay una respuesta completa y verificada, 
-             úsala tal cual; si no existe, usa los plugins adecuados 
-             y si estos devuelven una respuesta completa, 
-             preséntala sin cambios; 
-             si ni memoria ni plugins contienen la respuesta, 
-             no generes una por tu cuenta; 
-             sigue siempre el orden Memoria->Plugins y nunca combines fuentes.
-             Instrucciones obligatorias: responde siempre en español; 
-             si el usuario saluda, comienza con un saludo cordial; 
-             busca primero en tu memoria o base de conocimiento y, 
-             si hay una respuesta completa y verificada, 
-             úsala tal cual; si no existe, usa los plugins adecuados 
-             y si estos devuelven una respuesta completa, 
-             preséntala sin cambios; 
-             si ni memoria ni plugins contienen la respuesta, 
-             no generes una por tu cuenta; 
-             sigue siempre el orden Memoria->Plugins y nunca combines fuentes.
-            """
-    };
-    /// <summary>
-    /// Cada vez que ejecutes una función o prompt en el Kernel y uses arguments, Semantic Kernel 
-    /// aplicará automáticamente la configuración OpenAIPromptExecutionSettings que definiste.
-    /// </summary>
-    private static readonly KernelArguments arguments = new(settings);
-
-    private const string HistoryCacheKeyPrefix = "conversation_history_";
-    private const int HistoryCacheDurationMinutes = 30;
+    private bool _isInitialized = false;
+    private static readonly KernelArguments arguments = Constants.ExecutionSettings.CreateKernelArguments();
 
     public async Task<string> Chat(string prompt, string userId = "default")
     {
         var conversationHistory = GetConversationHistory(userId);
-        if (!_isInitialized)
+        if (!_isInitialized && conversationHistory.Count == 0)
         {
-           var allcases = await clienServices.AllCases();
+           var allcases = await clienServices.SizeCasesBySector();
            var jsonCases = JsonSerializer.Serialize(allcases);
-           conversationHistory.Add(("sistema", $"Información de casos: {jsonCases}"));
+           conversationHistory.Add(("sistema", $"Información de cantidad de casos por sector: {jsonCases}"));
            _isInitialized = true;
-           
         }
 
-        var searchResult = await kernel.InvokePromptAsync(
-            $"""
-                Busca en tu memoria semántica información relevante para responder a la siguiente pregunta del usuario: {prompt}
-                Devuelve solo el texto encontrado sin agregar nada más.
-                Regresa en estructura JSON: FoundInSemanticMemory (booleano) y ResponseContent (string con el texto encontrado o vacío si no se encontró nada).
-                """,
-            arguments);
-        string jsonString = searchResult.GetValue<string>() ?? string.Empty;
-        var jsonStart = jsonString.IndexOf("{");
-        var jsonEnd = jsonString.LastIndexOf("}");
-        if (jsonStart >= 0 && jsonEnd > jsonStart)
-        {
-            jsonString = jsonString.Substring(jsonStart, jsonEnd - jsonStart + 1);
-        }
-        var dto = JsonSerializer.Deserialize<ChatResponseDto>(jsonString);
+        string semanticContext = await SearchSemanticMemory(prompt);
 
-        if (dto!.FoundInSemanticMemory)
-        {
-            conversationHistory.Add(("usuario", prompt));
-            conversationHistory.Add(("asistente", dto.ResponseContent));
-            SaveConversationHistory(userId, conversationHistory);
-            return dto.ResponseContent;
-        }
+        string qdrantContext = await FormatQdrantResults(await SearchInQdrantAsync(prompt));
 
-        var buscaquedaQdrant = await SearchInQdrantAsync(prompt);
+        string fusedContext = FuseContexts(semanticContext, qdrantContext);
 
         string historyContext = FormatConversationHistory(conversationHistory);
+
         string fullPrompt = $"""
-                Hitorial de la conversación:
-                {historyContext}
+            Historial de la conversación:
+            {historyContext}
 
-                Información de la base de conocimiento:
-                {buscaquedaQdrant![0].Payload["text"]}
+            Contexto:
+            {fusedContext}
 
-                Pregunta del usuario: {prompt}
-                """;
+            Pregunta del usuario: {prompt}
+            """;
 
         var result = await kernel.InvokePromptAsync(fullPrompt, arguments);
         var responseText = result.GetValue<string>() ?? string.Empty;
 
-        // 💾 Guardar el intercambio en el historial
         conversationHistory.Add(("usuario", prompt));
         conversationHistory.Add(("asistente", responseText));
         SaveConversationHistory(userId, conversationHistory);
@@ -129,9 +66,9 @@ public class AgentsServices(
     /// <param name="history"></param>
     private void SaveConversationHistory(string userId, List<(string role, string message)> history)
     {
-        var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+        var cacheKey = $"{Constants.Llm.MemoryCacheKeyPrefix}{userId}";
         var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(HistoryCacheDurationMinutes));
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(Constants.Llm.HistoryCacheDurationMinutes));
         memoryCache.Set(cacheKey, history, cacheOptions);
     }
 
@@ -140,7 +77,7 @@ public class AgentsServices(
     /// </summary>
     private List<(string role, string message)> GetConversationHistory(string userId)
     {
-        var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+        var cacheKey = $"{Constants.Llm.MemoryCacheKeyPrefix}{userId}";
         if (memoryCache.TryGetValue(cacheKey, out List<(string, string)>? history))
         {
             return history ?? [];
@@ -155,12 +92,12 @@ public class AgentsServices(
     private static string FormatConversationHistory(List<(string role, string message)> history)
     {
         if (history.Count == 0)
-            return string.Empty;
+            return Constants.Formatting.EmptyHistory;
 
-        var historyText = "Historial de conversación:\n";
-        foreach (var (role, message) in history.TakeLast(10)) // Últimos 10 mensajes
+        var historyText = $"{Constants.Formatting.HistoryHeader}\n";
+        foreach (var (role, message) in history.TakeLast(Constants.Llm.MaxHistoryMessages))
         {
-            historyText += $"{role}: {message}\n";
+            historyText += string.Format(Constants.Formatting.HistoryEntryFormat, role, message) + "\n";
         }
         return historyText;
     }
@@ -172,10 +109,76 @@ public class AgentsServices(
     {
         var vector = await embeddingService.GenerateEmbeddingsAsync([prompt], null, CancellationToken.None);
         return await qdrantClient.SearchAsync(
-            collectionName: "pdfs",
+            collectionName: Constants.Llm.CollectionName,
             vector: vector[0].ToArray(),
-            limit: 1
+            limit: Constants.Llm.DefaultSearchLimit
         );
+    }
+
+    /// <summary>
+    /// Busca en memoria semántica y devuelve solo el texto encontrado
+    /// </summary>
+    private async Task<string> SearchSemanticMemory(string prompt)
+    {
+        var searchPrompt = string.Format(Constants.Prompts.SemanticMemorySearchPrompt, prompt);
+        var searchResult = await kernel.InvokePromptAsync(searchPrompt, arguments);
+
+        string jsonString = searchResult.GetValue<string>() ?? string.Empty;
+        var jsonStart = jsonString.IndexOf("{");
+        var jsonEnd = jsonString.LastIndexOf("}");
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
+        {
+            jsonString = jsonString.Substring(jsonStart, jsonEnd - jsonStart + 1);
+        }
+
+        var dto = JsonSerializer.Deserialize<ChatResponseDto>(jsonString);
+        return dto?.ResponseContent ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Formatea los resultados de Qdrant como texto
+    /// </summary>
+    private async Task<string> FormatQdrantResults(IReadOnlyList<Qdrant.Client.Grpc.ScoredPoint>? results)
+    {
+        if (results == null || results.Count == 0)
+            return string.Empty;
+
+        var formattedResults = new List<string>();
+        foreach (var point in results)
+        {
+            if (point.Payload.TryGetValue("text", out var textValue))
+            {
+                formattedResults.Add(textValue.ToString());
+            }
+        }
+
+        if (formattedResults.Count == 0)
+            return string.Empty;
+
+        return string.Join("\n---\n", formattedResults);
+    }
+
+    /// <summary>
+    /// Fusiona las fuentes de información en un contexto unificado
+    /// </summary>
+    private static string FuseContexts(string semanticContext, string qdrantContext)
+    {
+        var contexts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(semanticContext))
+        {
+            contexts.Add($"[Memoria Semántica]\n{semanticContext}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(qdrantContext))
+        {
+            contexts.Add($"[Base de Conocimiento Qdrant]\n{qdrantContext}");
+        }
+
+        if (contexts.Count == 0)
+            return "No se encontró información relevante en las fuentes disponibles.";
+
+        return string.Join("\n\n", contexts);
     }
 
 }

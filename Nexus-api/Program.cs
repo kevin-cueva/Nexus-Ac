@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Net;
 using Nexus_api.Infrastructure.Repository;
 using Nexus_api.Infrastructure.Data;
+using Nexus_api.Plugins;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,8 +60,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddKernel()
     .AddOpenAIChatCompletion(modelId!, apiKey!)
     .AddOpenAITextEmbeddingGeneration("text-embedding-3-small", apiKey!)
-    .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()));
+    .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()))
+            .AddFromType<SectorsPlugin>("SectorsPlugin");
+    
 builder.Services.AddSingleton(sp => new QdrantClient(qdrantEndpoint!, 6334!, true, qdrantApiKey!));
+
+
 
 var connectionString = builder.Configuration["ConnectionString:DbNexus"]!;
 builder.Services.AddDbContext<NexusDbContext>(options =>

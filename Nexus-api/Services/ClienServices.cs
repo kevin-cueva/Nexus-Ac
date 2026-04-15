@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using Microsoft.EntityFrameworkCore;
 using Nexus_api.Domain.Entities;
 using Nexus_api.Dtos;
@@ -8,9 +9,14 @@ using Nexus_api.Services.Interface;
 namespace Nexus_api.Services;
 
 public class ClienServices(
-    IGenericRepository<Case> caseRepository) : IClienServices
+    IGenericRepository<Case> caseRepository,
+    IGenericRepository<Client> clientRepository,
+    IGenericRepository<Sector> sectorRepository
+) : IClienServices
 {
     private readonly IGenericRepository<Case> _caseRepository = caseRepository;
+    private readonly IGenericRepository<Client> _clientRepository = clientRepository;
+    private readonly IGenericRepository<Sector> _sectorRepository = sectorRepository;
 
     /// <summary>
     /// Obtiene una lista de casos con detalles como 
@@ -33,5 +39,35 @@ public class ClienServices(
             .ToListAsync();
         return cases;
         
+    }
+
+    public async Task<List<SizeCasesSectorDto>> SizeCasesBySector()
+    {
+        var casesBySector = await _caseRepository.Consultar()
+            .Include(c => c.Sector)
+            .GroupBy(c => new { c.Sector.Id, c.Sector.Name })
+            .Select(g => new SizeCasesSectorDto
+            {
+                IdSector = g.Key.Id.ToString(),
+                Sector = g.Key.Name,
+                CasesCount = g.Count()
+            })
+            .ToListAsync();
+        return casesBySector;
+    }
+
+    public async Task<List<CasesBySectorDto>> CasesBySector(string sectorId)
+    {
+        var cases = await _caseRepository.Consultar()
+            .Include(c => c.Sector)
+            .Where(c => c.Sector.Id.ToString() == sectorId)
+            .Select(c => new CasesBySectorDto
+            {
+                IdCase = c.Id,
+                NameCase = c.Name,
+                Description = c.Description
+            })
+            .ToListAsync();
+        return cases;
     }
 }

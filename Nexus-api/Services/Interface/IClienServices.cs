@@ -14,5 +14,13 @@ public interface IClienServices
    /// </summary>
    /// <returns></returns>
    public Task<List<CasesDto>> AllCases();
+   public Task<List<SizeCasesSectorDto>> SizeCasesBySector();
+   /// <summary>
+   /// Obtiene una lista de casos filtrados por sector, proporcionando detalles como descripción, 
+   /// y nombre del cliente.
+   /// </summary>
+   /// <param name="sectorId"></param>
+   /// <returns></returns>
+   public Task<List<CasesBySectorDto>> CasesBySector(string sectorId);
 
 }
