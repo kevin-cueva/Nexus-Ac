@@ -61,7 +61,8 @@ builder.Services.AddKernel()
     .AddOpenAIChatCompletion(modelId!, apiKey!)
     .AddOpenAITextEmbeddingGeneration("text-embedding-3-small", apiKey!)
     .Plugins.AddFromFunctions("Tools", tools.Result.Select(tools => tools.AsKernelFunction()))
-            .AddFromType<SectorsPlugin>("SectorsPlugin");
+            .AddFromType<SectorsPlugin>("SectorsPlugin")
+            .AddFromType<CaseTeamMembersPlugin>("CaseTeamMembersPlugin");
     
 builder.Services.AddSingleton(sp => new QdrantClient(qdrantEndpoint!, 6334!, true, qdrantApiKey!));
 

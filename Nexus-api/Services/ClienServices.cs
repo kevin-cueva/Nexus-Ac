@@ -11,12 +11,14 @@ namespace Nexus_api.Services;
 public class ClienServices(
     IGenericRepository<Case> caseRepository,
     IGenericRepository<Client> clientRepository,
-    IGenericRepository<Sector> sectorRepository
+    IGenericRepository<Sector> sectorRepository,
+    IGenericRepository<TeamMember> teamMemberRepository
 ) : IClienServices
 {
     private readonly IGenericRepository<Case> _caseRepository = caseRepository;
     private readonly IGenericRepository<Client> _clientRepository = clientRepository;
     private readonly IGenericRepository<Sector> _sectorRepository = sectorRepository;
+    private readonly IGenericRepository<TeamMember> _teamMemberRepository = teamMemberRepository;
 
     /// <summary>
     /// Obtiene una lista de casos con detalles como 
@@ -69,5 +71,22 @@ public class ClienServices(
             })
             .ToListAsync();
         return cases;
+    }
+
+    public async Task<List<CaseTeamMemberDto>> GetTeamMembersByCaseIdAsync(int caseId)
+    {
+        var teamMembers = await _teamMemberRepository.Consultar()
+            .Include(tm => tm.User)
+            .Include(tm => tm.Role)
+            .Where(tm => tm.IdCase == caseId)
+            .Select(tm => new CaseTeamMemberDto
+            {
+                UserId = tm.User.Id,
+                UserName = tm.User.Username,
+                RolTeamId = tm.Role.Id,
+                RolTeamName = tm.Role.Name
+            })
+            .ToListAsync();
+        return teamMembers;
     }
 }

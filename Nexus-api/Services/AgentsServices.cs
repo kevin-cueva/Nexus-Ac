@@ -138,7 +138,7 @@ public class AgentsServices(
     /// <summary>
     /// Formatea los resultados de Qdrant como texto
     /// </summary>
-    private async Task<string> FormatQdrantResults(IReadOnlyList<Qdrant.Client.Grpc.ScoredPoint>? results)
+    private static async Task<string> FormatQdrantResults(IReadOnlyList<Qdrant.Client.Grpc.ScoredPoint>? results)
     {
         if (results == null || results.Count == 0)
             return string.Empty;

@@ -25,3 +25,11 @@ public class CasesBySectorDto
     public string? NameCase { get; set; }
     public string? Description { get; set; }
 }
+
+public class CaseTeamMemberDto
+{
+    public int UserId { get; set; }
+    public string? UserName { get; set; }
+    public int RolTeamId { get; set; }
+    public string? RolTeamName { get; set; }
+}

@@ -5,6 +5,7 @@ namespace Nexus_api.Services.Interface;
 
 public interface IClienServices
 {
+    public Task<List<CaseTeamMemberDto>> GetTeamMembersByCaseIdAsync(int caseId);
    /// <summary>
    /// Obtiene una lista de casos con detalles como 
    /// descripción, fecha de creación, nombre del cliente y sector asociado. 
