@@ -1,4 +1,3 @@
-using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Embeddings;
 using Nexus_api.Dtos;
 using Nexus_api.Services.Interface;
@@ -6,7 +5,7 @@ using Qdrant.Client;
 using UglyToad.PdfPig;
 using PointStruct = Qdrant.Client.Grpc.PointStruct;
 using PointId = Qdrant.Client.Grpc.PointId;
-using Microsoft.Extensions.AI;
+using Nexus_api.Infrastructure.Utils;
 using static Nexus_api.Dtos.DataEmbeddingsDto;
 
 namespace Nexus_api.Services;
@@ -18,19 +17,14 @@ public class DataEmbeddingServices(QdrantClient qdrantClient, ITextEmbeddingGene
 
     public async Task<bool> PdfEmbeddings(DataEmbeddingsDto.Pdf pdf)
     {
-        string pdfText = "";
         await using var stream = pdf.File.OpenReadStream();
         var text = Utils.Utils.ExtractTextFromPdf(stream);
         IEnumerable<string> chunksText = Utils.Utils.SplitIntoChunks(text, 4);
 
-        //var apiKey = Environment.GetEnvironmentVariable("Nexus:ApiKey") ?? throw new InvalidOperationException("API key not found in environment variables.");
-        var model = "text-embedding-3-small";
-
-
         IList<ReadOnlyMemory<float>>? embeddings = await _embeddingService.GenerateEmbeddingsAsync([.. chunksText], null, CancellationToken.None);
         Metadata metadata = new(pdf.Metadata.UseCaseId, pdf.Metadata.Departament, pdf.Metadata.Owner, pdf.Metadata.Classification);
 
-        await UpsertListChunksWithEmbeddings(embeddings, chunksText, metadata, "pdfs");
+        await UpsertListChunksWithEmbeddings(embeddings, chunksText, metadata, Constants.Llm.CollectionName);
         return true;
     }
 

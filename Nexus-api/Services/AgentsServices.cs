@@ -1,14 +1,12 @@
-using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.Extensions.Caching.Memory;
 using Qdrant.Client;
 using Microsoft.SemanticKernel.Embeddings;
-using System.Text.Json.Serialization.Metadata;
 using System.Text.Json;
 using Nexus_api.Dtos;
 using Nexus_api.Services.Interface;
+using Nexus_api.Infrastructure.Utils;
 
 namespace Nexus_api.Services;
 
@@ -19,49 +17,8 @@ public class AgentsServices(
     IClienServices clienServices,
     ITextEmbeddingGenerationService embeddingService)
 {
-
-    private bool _isInitialized = false;   
-    /// <summary>
-    /// En Semantic Kernel (SK), ese código configura cómo el kernel debe decidir 
-    /// automáticamente si ejecuta o no una Function (Skill) de tu aplicación cuando 
-    /// el modelo de IA lo considere necesario.
-    /// </summary>
-    /// <returns></returns>
-    private static readonly OpenAIPromptExecutionSettings settings = new()
-    {
-        FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-        ChatSystemPrompt = """
-             Instrucciones obligatorias: responde siempre en español; 
-             si el usuario saluda, comienza con un saludo cordial; 
-             busca primero en tu memoria o base de conocimiento y, 
-             si hay una respuesta completa y verificada, 
-             úsala tal cual; si no existe, usa los plugins adecuados 
-             y si estos devuelven una respuesta completa, 
-             preséntala sin cambios; 
-             si ni memoria ni plugins contienen la respuesta, 
-             no generes una por tu cuenta; 
-             sigue siempre el orden Memoria->Plugins y nunca combines fuentes.
-             Instrucciones obligatorias: responde siempre en español; 
-             si el usuario saluda, comienza con un saludo cordial; 
-             busca primero en tu memoria o base de conocimiento y, 
-             si hay una respuesta completa y verificada, 
-             úsala tal cual; si no existe, usa los plugins adecuados 
-             y si estos devuelven una respuesta completa, 
-             preséntala sin cambios; 
-             si ni memoria ni plugins contienen la respuesta, 
-             no generes una por tu cuenta; 
-             sigue siempre el orden Memoria->Plugins y nunca combines fuentes.
-            """
-    };
-    /// <summary>
-    /// Cada vez que ejecutes una función o prompt en el Kernel y uses arguments, Semantic Kernel 
-    /// aplicará automáticamente la configuración OpenAIPromptExecutionSettings que definiste.
-    /// </summary>
-    private static readonly KernelArguments arguments = new(settings);
-
-    private const string HistoryCacheKeyPrefix = "conversation_history_";
-    private const int HistoryCacheDurationMinutes = 30;
-    private const int QdrantLimit = 3;
+    private bool _isInitialized = false;
+    private static readonly KernelArguments arguments = Constants.ExecutionSettings.CreateKernelArguments();
 
     public async Task<string> Chat(string prompt, string userId = "default")
     {
@@ -109,9 +66,9 @@ public class AgentsServices(
     /// <param name="history"></param>
     private void SaveConversationHistory(string userId, List<(string role, string message)> history)
     {
-        var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+        var cacheKey = $"{Constants.Llm.MemoryCacheKeyPrefix}{userId}";
         var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(HistoryCacheDurationMinutes));
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(Constants.Llm.HistoryCacheDurationMinutes));
         memoryCache.Set(cacheKey, history, cacheOptions);
     }
 
@@ -120,7 +77,7 @@ public class AgentsServices(
     /// </summary>
     private List<(string role, string message)> GetConversationHistory(string userId)
     {
-        var cacheKey = $"{HistoryCacheKeyPrefix}{userId}";
+        var cacheKey = $"{Constants.Llm.MemoryCacheKeyPrefix}{userId}";
         if (memoryCache.TryGetValue(cacheKey, out List<(string, string)>? history))
         {
             return history ?? [];
@@ -135,12 +92,12 @@ public class AgentsServices(
     private static string FormatConversationHistory(List<(string role, string message)> history)
     {
         if (history.Count == 0)
-            return string.Empty;
+            return Constants.Formatting.EmptyHistory;
 
-        var historyText = "Historial de conversación:\n";
-        foreach (var (role, message) in history.TakeLast(10)) // Últimos 10 mensajes
+        var historyText = $"{Constants.Formatting.HistoryHeader}\n";
+        foreach (var (role, message) in history.TakeLast(Constants.Llm.MaxHistoryMessages))
         {
-            historyText += $"{role}: {message}\n";
+            historyText += string.Format(Constants.Formatting.HistoryEntryFormat, role, message) + "\n";
         }
         return historyText;
     }
@@ -152,9 +109,9 @@ public class AgentsServices(
     {
         var vector = await embeddingService.GenerateEmbeddingsAsync([prompt], null, CancellationToken.None);
         return await qdrantClient.SearchAsync(
-            collectionName: "pdfs",
+            collectionName: Constants.Llm.CollectionName,
             vector: vector[0].ToArray(),
-            limit: QdrantLimit
+            limit: Constants.Llm.DefaultSearchLimit
         );
     }
 
@@ -163,13 +120,8 @@ public class AgentsServices(
     /// </summary>
     private async Task<string> SearchSemanticMemory(string prompt)
     {
-        var searchResult = await kernel.InvokePromptAsync(
-            $"""
-                Busca en tu memoria semántica información relevante para responder a la siguiente pregunta del usuario: {prompt}
-                Devuelve solo el texto encontrado sin agregar nada más.
-                Regresa en estructura JSON: FoundInSemanticMemory (booleano) y ResponseContent (string con el texto encontrado o vacío si no se encontró nada).
-                """,
-            arguments);
+        var searchPrompt = string.Format(Constants.Prompts.SemanticMemorySearchPrompt, prompt);
+        var searchResult = await kernel.InvokePromptAsync(searchPrompt, arguments);
 
         string jsonString = searchResult.GetValue<string>() ?? string.Empty;
         var jsonStart = jsonString.IndexOf("{");
