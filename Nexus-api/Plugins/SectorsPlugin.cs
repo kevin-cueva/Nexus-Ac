@@ -3,14 +3,9 @@ using Nexus_api.Dtos;
 using Nexus_api.Services.Interface;
 
 namespace Nexus_api.Plugins;
-public class SectorsPlugin
+public class SectorsPlugin(IServiceProvider serviceProvider)
 {
-    private readonly IServiceProvider _serviceProvider;
-
-    public SectorsPlugin(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
 
     [KernelFunction("get_sectors")]
     public async Task<List<SizeCasesSectorDto>> GetNamesSectorsAsync()
